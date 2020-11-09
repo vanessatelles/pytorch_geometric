@@ -3,7 +3,8 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
 
-from citation import get_planetoid_dataset, random_planetoid_splits, run
+from train_eval import random_planetoid_splits, run
+from datasets import get_planetoid_dataset
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dataset', type=str, required=True)

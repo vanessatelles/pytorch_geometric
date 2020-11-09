@@ -43,7 +43,7 @@ def random_planetoid_splits(data, num_classes):
 def run(dataset, model, runs, epochs, lr, weight_decay, early_stopping,
         permute_masks=None, logger=None):
 
-    val_losses, accs, durations = [], [], []
+    val_losses, accs, durations, train_losses = [], [], [], []
     for _ in range(runs):
         data = dataset[0]
         if permute_masks is not None:
@@ -73,6 +73,7 @@ def run(dataset, model, runs, epochs, lr, weight_decay, early_stopping,
             if eval_info['val_loss'] < best_val_loss:
                 best_val_loss = eval_info['val_loss']
                 test_acc = eval_info['test_acc']
+                best_train_loss=eval_info['train_loss']
 
             val_loss_history.append(eval_info['val_loss'])
             if early_stopping > 0 and epoch > epochs // 2:
@@ -84,18 +85,18 @@ def run(dataset, model, runs, epochs, lr, weight_decay, early_stopping,
             torch.cuda.synchronize()
 
         t_end = time.perf_counter()
-
+        train_losses.append(best_train_loss)
         val_losses.append(best_val_loss)
         accs.append(test_acc)
         durations.append(t_end - t_start)
 
-    loss, acc, duration = tensor(val_losses), tensor(accs), tensor(durations)
+    lossT, loss, acc, duration = tensor(train_losses),tensor(val_losses), tensor(accs), tensor(durations)
 
-    print('Val Loss: {:.4f}, Test Accuracy: {:.3f} ± {:.3f}, Duration: {:.3f}'.
+    print('Val Loss: {:.4f}, Test Accuracy: {:.3f} ± {:.3f}, Duration: {:.3f}, Train Loss: {:.4f}'.
           format(loss.mean().item(),
                  acc.mean().item(),
                  acc.std().item(),
-                 duration.mean().item()))
+                 duration.mean().item(), lossT.mean().item()))
 
 
 def train(model, optimizer, data):
@@ -103,7 +104,7 @@ def train(model, optimizer, data):
     optimizer.zero_grad()
     out = model(data)
     loss = F.nll_loss(out[data.train_mask], data.y[data.train_mask])
-    loss.backward()
+    loss.backward()    
     optimizer.step()
 
 
@@ -116,11 +117,13 @@ def evaluate(model, data):
     outs = {}
     for key in ['train', 'val', 'test']:
         mask = data['{}_mask'.format(key)]
-        loss = F.nll_loss(logits[mask], data.y[mask]).item()
+        loss = F.nll_loss(logits[mask], data.y[mask]).item()        
         pred = logits[mask].max(1)[1]
         acc = pred.eq(data.y[mask]).sum().item() / mask.sum().item()
+        
 
         outs['{}_loss'.format(key)] = loss
         outs['{}_acc'.format(key)] = acc
+        
 
     return outs
